@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>画像おきば</title>
+  <title>Image Gallery</title>
   <style>
+    * { box-sizing: border-box; }
     body { font-family: sans-serif; background: #f0f0f0; margin: 0; padding: 20px; }
     h1 { margin-bottom: 16px; }
     .folders { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
@@ -21,36 +22,71 @@
     .thumb {
       background: white; border-radius: 10px;
       overflow: hidden; box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+      transition: transform 0.15s;
     }
-    .thumb img {
-      width: 100%; height: 150px; object-fit: cover; display: block;
-    }
-    .thumb-footer {
-      padding: 8px; display: flex; align-items: center; gap: 6px;
-    }
+    .thumb:hover { transform: translateY(-2px); }
+    .thumb-img-wrap { cursor: zoom-in; }
+    .thumb img { width: 100%; height: 150px; object-fit: cover; display: block; }
+    .thumb-footer { padding: 8px; display: flex; align-items: center; gap: 6px; }
     .thumb-name {
       font-size: 11px; color: #444; flex: 1;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .dl-btn {
-      font-size: 18px; text-decoration: none; flex-shrink: 0;
+      font-size: 18px; cursor: pointer;
+      background: none; border: none; padding: 0; flex-shrink: 0;
     }
-    #status { color: #888; margin: 20px 0; }
+    #status { color: #888; margin: 20px 0; min-height: 24px; }
+
+    /* ライトボックス */
+    .lightbox {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.92); z-index: 1000;
+      align-items: center; justify-content: center; cursor: zoom-out;
+    }
+    .lightbox.open { display: flex; }
+    .lightbox img {
+      max-width: 90vw; max-height: 82vh;
+      object-fit: contain; border-radius: 4px; cursor: default;
+    }
+    .lb-close {
+      position: absolute; top: 16px; right: 20px;
+      color: white; font-size: 32px; cursor: pointer;
+      background: none; border: none; line-height: 1;
+    }
+    .lb-name {
+      position: absolute; bottom: 70px; left: 50%; transform: translateX(-50%);
+      color: #ccc; font-size: 13px; white-space: nowrap;
+    }
+    .lb-dl {
+      position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+      background: #0969da; color: white; border: none;
+      padding: 10px 28px; border-radius: 24px; font-size: 15px; cursor: pointer;
+    }
+    .lb-dl:hover { background: #0550ae; }
   </style>
 </head>
 <body>
-  <h1>画像おきば</h1>
+  <h1>🖼️ Image Gallery</h1>
   <div class="folders" id="folders"></div>
   <div id="status"></div>
   <div class="gallery" id="gallery"></div>
 
-  <script>
-    // ★ここを自分のGitHubユーザー名とリポジトリ名に変える
-    const OWNER = 'sorafjah';
-    const REPO  = 'gazo';
-    const BRANCH = 'main';
+  <div class="lightbox" id="lightbox" onclick="closeLightbox()">
+    <button class="lb-close" onclick="closeLightbox()">✕</button>
+    <img id="lb-img" src="" alt="" onclick="event.stopPropagation()">
+    <div class="lb-name" id="lb-name"></div>
+    <button class="lb-dl" onclick="event.stopPropagation(); dlCurrent()">⬇️ ダウンロード</button>
+  </div>
 
+  <script>
+    const OWNER  = 'sorafjah';
+    const REPO   = 'gazo';
+    const BRANCH = 'main';
     const IMG_EXT = /\.(jpg|jpeg|png|gif|webp|svg|avif)$/i;
+
+    let currentUrl = '';
+    let currentName = '';
 
     function rawUrl(path) {
       return `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${path}`;
@@ -64,26 +100,63 @@
       return res.json();
     }
 
+    function openLightbox(url, name) {
+      currentUrl = url;
+      currentName = name;
+      document.getElementById('lb-img').src = url;
+      document.getElementById('lb-name').textContent = name;
+      document.getElementById('lightbox').classList.add('open');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeLightbox() {
+      document.getElementById('lightbox').classList.remove('open');
+      document.body.style.overflow = '';
+    }
+
+    function dlCurrent() { downloadImage(currentUrl, currentName); }
+
+    async function downloadImage(url, filename) {
+      try {
+        const res = await fetch(url);
+        const blob = await res.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      } catch(e) {
+        window.open(url, '_blank');
+      }
+    }
+
     async function showImages(folder) {
       const gallery = document.getElementById('gallery');
       const status  = document.getElementById('status');
       gallery.innerHTML = '';
       status.textContent = '読み込み中…';
-
       try {
         const items  = await fetchContents(folder);
         const images = items.filter(f => f.type === 'file' && IMG_EXT.test(f.name));
         status.textContent = `${images.length} 枚`;
-        gallery.innerHTML = images.map(img => `
-          <div class="thumb">
-            <img src="${rawUrl(img.path)}" alt="${img.name}" loading="lazy">
-            <div class="thumb-footer">
-              <span class="thumb-name">${img.name}</span>
-              <a class="dl-btn" href="${rawUrl(img.path)}" download="${img.name}" title="ダウンロード">⬇️</a>
-            </div>
-          </div>
-        `).join('');
-      } catch (e) {
+        gallery.innerHTML = images.map(img => {
+          const url = rawUrl(img.path);
+          return `
+            <div class="thumb">
+              <div class="thumb-img-wrap"
+                   onclick="openLightbox('${url}', '${img.name.replace(/'/g,"\\'")}')">
+                <img src="${url}" alt="${img.name}" loading="lazy">
+              </div>
+              <div class="thumb-footer">
+                <span class="thumb-name" title="${img.name}">${img.name}</span>
+                <button class="dl-btn"
+                  onclick="downloadImage('${url}', '${img.name.replace(/'/g,"\\'")}')">⬇️</button>
+              </div>
+            </div>`;
+        }).join('');
+      } catch(e) {
         status.textContent = 'エラー: ' + e.message;
       }
     }
@@ -91,23 +164,14 @@
     async function init() {
       const status = document.getElementById('status');
       status.textContent = 'フォルダ一覧を取得中…';
-
       const items   = await fetchContents('');
       const folders = items.filter(f => f.type === 'dir' && !f.name.startsWith('.'));
-
       const foldersEl = document.getElementById('folders');
-
-      if (folders.length === 0) {
-        // フォルダなし → ルートの画像を表示
-        showImages('');
-        return;
-      }
-
+      if (folders.length === 0) { showImages(''); return; }
       foldersEl.innerHTML = folders.map((f, i) =>
         `<button class="folder-btn${i === 0 ? ' active' : ''}"
           onclick="selectFolder('${f.path}', this)">${f.name}</button>`
       ).join('');
-
       showImages(folders[0].path);
     }
 
@@ -117,6 +181,7 @@
       showImages(path);
     }
 
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
     init();
   </script>
 </body>
