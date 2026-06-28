@@ -45,32 +45,35 @@
       align-items: center; justify-content: center;
     }
     .lightbox.open { display: flex; }
+
+    /* 両端固定ナビボタン */
+    .lb-nav {
+      position: absolute; top: 50%; transform: translateY(-50%);
+      background: none; border: none;
+      font-size: 42px; color: #bbb; cursor: pointer;
+      padding: 20px 14px; line-height: 1;
+    }
+    .lb-nav:hover:not(:disabled) { color: #333; }
+    .lb-nav:disabled { opacity: 0.15; cursor: default; }
+    #lb-prev { left: 0; }
+    #lb-next { right: 0; }
+
     .lb-close {
       position: absolute; top: 16px; right: 20px;
       color: #333; font-size: 28px; cursor: pointer;
       background: none; border: none; line-height: 1;
     }
     .lb-close:hover { color: #000; }
+
     .lb-body {
       display: flex; flex-direction: column; align-items: center; gap: 16px;
-    }
-    .lb-img-row {
-      display: flex; align-items: center; gap: 16px;
+      max-width: calc(100vw - 120px);
     }
     .lightbox img {
-      max-width: 78vw; max-height: 76vh;
+      max-width: 100%; max-height: 76vh;
       object-fit: contain; border-radius: 4px;
       box-shadow: 0 4px 20px rgba(0,0,0,0.12);
     }
-    .lb-nav {
-      width: 48px; height: 48px; border-radius: 50%;
-      border: 2px solid #ccc; background: none;
-      font-size: 22px; color: #333; cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0; transition: background 0.15s, border-color 0.15s;
-    }
-    .lb-nav:hover:not(:disabled) { background: #f0f0f0; border-color: #888; }
-    .lb-nav:disabled { opacity: 0.2; cursor: default; }
     .lb-footer {
       display: flex; align-items: center; gap: 16px;
     }
@@ -91,18 +94,16 @@
 
   <div class="lightbox" id="lightbox">
     <button class="lb-close" onclick="closeLightbox()">✕</button>
+    <button class="lb-nav" id="lb-prev" onclick="prevImage()">◁</button>
     <div class="lb-body">
-      <div class="lb-img-row">
-        <button class="lb-nav" id="lb-prev" onclick="prevImage()">&#8249;</button>
-        <img id="lb-img" src="" alt="">
-        <button class="lb-nav" id="lb-next" onclick="nextImage()">&#8250;</button>
-      </div>
+      <img id="lb-img" src="" alt="">
       <div class="lb-footer">
         <span class="lb-name" id="lb-name"></span>
         <span class="lb-counter" id="lb-counter"></span>
         <button class="lb-dl" onclick="dlCurrent()">ダウンロード</button>
       </div>
     </div>
+    <button class="lb-nav" id="lb-next" onclick="nextImage()">▷</button>
   </div>
 
   <script>
@@ -229,9 +230,9 @@
 
     document.addEventListener('keydown', e => {
       if (!document.getElementById('lightbox').classList.contains('open')) return;
-      if (e.key === 'Escape')      closeLightbox();
-      if (e.key === 'ArrowLeft')   prevImage();
-      if (e.key === 'ArrowRight')  nextImage();
+      if (e.key === 'Escape')     closeLightbox();
+      if (e.key === 'ArrowLeft')  prevImage();
+      if (e.key === 'ArrowRight') nextImage();
     });
 
     init();
