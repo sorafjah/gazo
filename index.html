@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Image Gallery</title>
+  <title>画像集</title>
   <style>
     * { box-sizing: border-box; }
     body { font-family: sans-serif; background: #f0f0f0; margin: 0; padding: 20px; }
@@ -41,42 +41,68 @@
     /* ライトボックス */
     .lightbox {
       display: none; position: fixed; inset: 0;
-      background: rgba(0,0,0,0.92); z-index: 1000;
-      align-items: center; justify-content: center; cursor: zoom-out;
+      background: white; z-index: 1000;
+      align-items: center; justify-content: center;
     }
     .lightbox.open { display: flex; }
-    .lightbox img {
-      max-width: 90vw; max-height: 82vh;
-      object-fit: contain; border-radius: 4px; cursor: default;
-    }
     .lb-close {
       position: absolute; top: 16px; right: 20px;
-      color: white; font-size: 32px; cursor: pointer;
+      color: #333; font-size: 28px; cursor: pointer;
       background: none; border: none; line-height: 1;
     }
-    .lb-name {
-      position: absolute; bottom: 70px; left: 50%; transform: translateX(-50%);
-      color: #ccc; font-size: 13px; white-space: nowrap;
+    .lb-close:hover { color: #000; }
+    .lb-body {
+      display: flex; flex-direction: column; align-items: center; gap: 16px;
     }
+    .lb-img-row {
+      display: flex; align-items: center; gap: 16px;
+    }
+    .lightbox img {
+      max-width: 78vw; max-height: 76vh;
+      object-fit: contain; border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+    }
+    .lb-nav {
+      width: 48px; height: 48px; border-radius: 50%;
+      border: 2px solid #ccc; background: none;
+      font-size: 22px; color: #333; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; transition: background 0.15s, border-color 0.15s;
+    }
+    .lb-nav:hover:not(:disabled) { background: #f0f0f0; border-color: #888; }
+    .lb-nav:disabled { opacity: 0.2; cursor: default; }
+    .lb-footer {
+      display: flex; align-items: center; gap: 16px;
+    }
+    .lb-name { font-size: 13px; color: #444; }
+    .lb-counter { font-size: 12px; color: #999; }
     .lb-dl {
-      position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
       background: #0969da; color: white; border: none;
-      padding: 10px 28px; border-radius: 24px; font-size: 15px; cursor: pointer;
+      padding: 8px 22px; border-radius: 20px; font-size: 14px; cursor: pointer;
     }
     .lb-dl:hover { background: #0550ae; }
   </style>
 </head>
 <body>
-  <h1>画像おきば</h1>
+  <h1>画像集</h1>
   <div class="folders" id="folders"></div>
   <div id="status"></div>
   <div class="gallery" id="gallery"></div>
 
-  <div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <div class="lightbox" id="lightbox">
     <button class="lb-close" onclick="closeLightbox()">✕</button>
-    <img id="lb-img" src="" alt="" onclick="event.stopPropagation()">
-    <div class="lb-name" id="lb-name"></div>
-    <button class="lb-dl" onclick="event.stopPropagation(); dlCurrent()">⬇️ ダウンロード</button>
+    <div class="lb-body">
+      <div class="lb-img-row">
+        <button class="lb-nav" id="lb-prev" onclick="prevImage()">&#8249;</button>
+        <img id="lb-img" src="" alt="">
+        <button class="lb-nav" id="lb-next" onclick="nextImage()">&#8250;</button>
+      </div>
+      <div class="lb-footer">
+        <span class="lb-name" id="lb-name"></span>
+        <span class="lb-counter" id="lb-counter"></span>
+        <button class="lb-dl" onclick="dlCurrent()">ダウンロード</button>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -85,8 +111,8 @@
     const BRANCH = 'main';
     const IMG_EXT = /\.(jpg|jpeg|png|gif|webp|svg|avif)$/i;
 
-    let currentUrl = '';
-    let currentName = '';
+    let currentImages = [];
+    let currentIndex  = 0;
 
     function rawUrl(path) {
       return `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${path}`;
@@ -100,13 +126,21 @@
       return res.json();
     }
 
-    function openLightbox(url, name) {
-      currentUrl = url;
-      currentName = name;
-      document.getElementById('lb-img').src = url;
-      document.getElementById('lb-name').textContent = name;
+    function openLightbox(index) {
+      currentIndex = index;
+      updateLightbox();
       document.getElementById('lightbox').classList.add('open');
       document.body.style.overflow = 'hidden';
+    }
+
+    function updateLightbox() {
+      const { url, name } = currentImages[currentIndex];
+      document.getElementById('lb-img').src = url;
+      document.getElementById('lb-name').textContent = name;
+      document.getElementById('lb-counter').textContent =
+        `${currentIndex + 1} / ${currentImages.length}`;
+      document.getElementById('lb-prev').disabled = currentIndex === 0;
+      document.getElementById('lb-next').disabled = currentIndex === currentImages.length - 1;
     }
 
     function closeLightbox() {
@@ -114,7 +148,18 @@
       document.body.style.overflow = '';
     }
 
-    function dlCurrent() { downloadImage(currentUrl, currentName); }
+    function prevImage() {
+      if (currentIndex > 0) { currentIndex--; updateLightbox(); }
+    }
+
+    function nextImage() {
+      if (currentIndex < currentImages.length - 1) { currentIndex++; updateLightbox(); }
+    }
+
+    function dlCurrent() {
+      const { url, name } = currentImages[currentIndex];
+      downloadImage(url, name);
+    }
 
     async function downloadImage(url, filename) {
       try {
@@ -137,22 +182,23 @@
       const status  = document.getElementById('status');
       gallery.innerHTML = '';
       status.textContent = '読み込み中…';
+      currentImages = [];
       try {
         const items  = await fetchContents(folder);
         const images = items.filter(f => f.type === 'file' && IMG_EXT.test(f.name));
         status.textContent = `${images.length} 枚`;
-        gallery.innerHTML = images.map(img => {
+        currentImages = images.map(img => ({ url: rawUrl(img.path), name: img.name }));
+        gallery.innerHTML = images.map((img, i) => {
           const url = rawUrl(img.path);
           return `
             <div class="thumb">
-              <div class="thumb-img-wrap"
-                   onclick="openLightbox('${url}', '${img.name.replace(/'/g,"\\'")}')">
+              <div class="thumb-img-wrap" onclick="openLightbox(${i})">
                 <img src="${url}" alt="${img.name}" loading="lazy">
               </div>
               <div class="thumb-footer">
                 <span class="thumb-name" title="${img.name}">${img.name}</span>
                 <button class="dl-btn"
-                  onclick="downloadImage('${url}', '${img.name.replace(/'/g,"\\'")}')">⬇️</button>
+                  onclick="downloadImage('${url}','${img.name.replace(/'/g,"\\'")}')">⬇️</button>
               </div>
             </div>`;
         }).join('');
@@ -181,7 +227,13 @@
       showImages(path);
     }
 
-    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+    document.addEventListener('keydown', e => {
+      if (!document.getElementById('lightbox').classList.contains('open')) return;
+      if (e.key === 'Escape')      closeLightbox();
+      if (e.key === 'ArrowLeft')   prevImage();
+      if (e.key === 'ArrowRight')  nextImage();
+    });
+
     init();
   </script>
 </body>
